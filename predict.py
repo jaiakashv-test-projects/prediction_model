@@ -13,7 +13,7 @@ print("Loading TravelFlux ML model...")
 model = joblib.load(MODEL_PATH)
 
 
-print("Loading latest data from Neon...")
+print("Loading historical data from Neon...")
 
 query = """
 SELECT
@@ -45,48 +45,65 @@ latest_rows = df.groupby("route_name").tail(1)
 predictions = []
 
 
-print("Generating new predictions...")
+FORECAST_DAYS = 7
+
+
+print(f"Generating predictions for next {FORECAST_DAYS} days...")
+
 
 for _, row in latest_rows.iterrows():
 
-    features = row[FEATURE_COLUMNS].values.reshape(1, -1)
+    route_name = row["route_name"]
 
-    predicted_seats = int(model.predict(features)[0])
+    current_features = row.copy()
 
-    next_date = row['travel_date'] + timedelta(days=1)
+    current_date = row["travel_date"]
 
-    predictions.append({
 
-        "route_name": row["route_name"],
-        "travel_date": next_date,
-        "predicted_filled_seats": predicted_seats
+    for day in range(1, FORECAST_DAYS + 1):
 
-    })
+        future_date = current_date + timedelta(days=day)
+
+        feature_values = current_features[FEATURE_COLUMNS].values.reshape(1, -1)
+
+        predicted_seats = int(model.predict(feature_values)[0])
+
+        predictions.append({
+
+            "route_name": route_name,
+            "travel_date": future_date,
+            "predicted_filled_seats": predicted_seats
+
+        })
+
+
+        # update lag features for next iteration (recursive prediction)
+
+        current_features["lag_1"] = predicted_seats
+
+        if "rolling_mean_2" in current_features:
+            current_features["rolling_mean_2"] = (
+                current_features["rolling_mean_2"] + predicted_seats
+            ) / 2
 
 
 pred_df = pd.DataFrame(predictions)
 
 
-print("\nNew predictions:")
+print("\nGenerated Predictions:")
 print(pred_df)
 
 
-# -------------------------
-# DELETE OLD PREDICTIONS
-# -------------------------
+print("\nDeleting old predictions from Neon...")
 
-print("\nDeleting old predictions...")
 
 with engine.connect() as conn:
     conn.execute(text("DELETE FROM predictions"))
     conn.commit()
 
 
-# -------------------------
-# INSERT NEW PREDICTIONS
-# -------------------------
+print("Saving new 7-day predictions to Neon...")
 
-print("Saving new predictions to Neon...")
 
 pred_df.to_sql(
 
@@ -98,4 +115,4 @@ pred_df.to_sql(
 )
 
 
-print("\nTravelFlux predictions updated successfully!")
+print("\nTravelFlux 7-day predictions saved successfully!")
