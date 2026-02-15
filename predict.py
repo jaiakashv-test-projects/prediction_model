@@ -1,6 +1,7 @@
 import pandas as pd
 import joblib
 from datetime import timedelta
+from sqlalchemy import text
 
 from db import engine
 from config import MODEL_PATH
@@ -36,7 +37,7 @@ print("Creating features...")
 df = create_features(df)
 
 
-print("Getting latest record for each route...")
+print("Getting latest row per route...")
 
 latest_rows = df.groupby("route_name").tail(1)
 
@@ -44,7 +45,7 @@ latest_rows = df.groupby("route_name").tail(1)
 predictions = []
 
 
-print("Generating predictions...")
+print("Generating new predictions...")
 
 for _, row in latest_rows.iterrows():
 
@@ -66,11 +67,26 @@ for _, row in latest_rows.iterrows():
 pred_df = pd.DataFrame(predictions)
 
 
-print("\nPredictions:")
+print("\nNew predictions:")
 print(pred_df)
 
 
-print("\nSaving predictions to Neon DB...")
+# -------------------------
+# DELETE OLD PREDICTIONS
+# -------------------------
+
+print("\nDeleting old predictions...")
+
+with engine.connect() as conn:
+    conn.execute(text("DELETE FROM predictions"))
+    conn.commit()
+
+
+# -------------------------
+# INSERT NEW PREDICTIONS
+# -------------------------
+
+print("Saving new predictions to Neon...")
 
 pred_df.to_sql(
 
@@ -82,4 +98,4 @@ pred_df.to_sql(
 )
 
 
-print("\nTravelFlux prediction saved successfully to Neon!")
+print("\nTravelFlux predictions updated successfully!")
