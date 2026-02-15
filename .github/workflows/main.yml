@@ -1,0 +1,34 @@
+name: TravelFlux Daily Prediction
+
+on:
+  schedule:
+    - cron: "30 19 * * *"   # Runs daily at 1 AM IST
+  workflow_dispatch:        # allows manual run
+
+jobs:
+  predict:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+
+      - name: Run prediction script
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python predict.py
