@@ -102,16 +102,27 @@ for _, row in latest_rows.iterrows():
             suggested_price = float(price_model.predict(feat_price)[0])
         else:
             # Heuristic: base price + surge
-            fill_rate = (predicted_seats / current_features['total_capacity']) if current_features['total_capacity'] > 0 else 0.5
+            capacity = current_features['total_capacity'] if current_features['total_capacity'] > 0 else 2000
+            fill_rate = predicted_seats / capacity
             base_price = last_price
-            surge = 1.2 if fill_rate > 0.7 else (1.1 if fill_rate > 0.4 else 1.0)
+            
+            # More granular surge for better variation
+            if fill_rate > 0.8:
+                surge = 1.25
+            elif fill_rate > 0.6:
+                surge = 1.15
+            elif fill_rate > 0.4:
+                surge = 1.05
+            else:
+                surge = 0.95 # Suggest slight discount for low demand
+                
             suggested_price = base_price * surge
 
         predictions.append({
             "route_name": route_name,
             "travel_date": future_date,
             "predicted_filled_seats": predicted_seats,
-            "suggested_price": round(suggested_price, 2)
+            "suggested_price": round(suggested_price, 0) # Round to nearest integer as requested
         })
 
         # Update lags for next day
